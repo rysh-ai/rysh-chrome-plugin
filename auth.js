@@ -3,6 +3,7 @@
 import authService from './authService.js';
 
 // ── DOM references ────────────────────────────────────────────────────────────
+const serverURLInput   = document.getElementById('server-url-input');
 const apiKeyInput      = document.getElementById('api-key-input');
 const toggleVisibility = document.getElementById('toggle-visibility');
 const eyeIcon          = document.getElementById('eye-icon');
@@ -36,7 +37,7 @@ apiKeyInput.addEventListener('keydown', e => {
 });
 
 async function handleAuthorize() {
-  const serverURL = 'https://rysh.ai';
+  const serverURL = (serverURLInput.value.trim() || 'https://rysh.ai').replace(/\/$/, '');
   const key = apiKeyInput.value.trim();
 
   hideError();
