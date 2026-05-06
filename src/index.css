@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base popup dimensions ────────────────────────────────────────────────── */
+html, body, #root {
+  width: 380px;
+  height: 600px;
+  overflow: hidden;
+  background: #0f0f13;
+  color: #e8e8f0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── ANSI classes (used by buildOutputHtml) ───────────────────────────────── */
+.ansi-bold        { font-weight: bold; }
+.ansi-dim         { opacity: 0.6; }
+.ansi-italic      { font-style: italic; }
+.ansi-underline   { text-decoration: underline; }
+.ansi-strikethrough { text-decoration: line-through; }
+
+/* ── Terminal pane output ─────────────────────────────────────────────────── */
+.pane-output {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Menlo, Monaco, 'Courier New', monospace;
+  color: #d4d4d4;
+  background: #1e1e1e;
+}
+.pane-output::-webkit-scrollbar      { width: 4px; }
+.pane-output::-webkit-scrollbar-track { background: transparent; }
+.pane-output::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+
+/* ── Chat messages area ───────────────────────────────────────────────────── */
+.messages-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #0f0f13;
+}
+.messages-area::-webkit-scrollbar      { width: 4px; }
+.messages-area::-webkit-scrollbar-track { background: transparent; }
+.messages-area::-webkit-scrollbar-thumb { background: #2e2e42; border-radius: 2px; }
+
+/* ── Message bubbles ──────────────────────────────────────────────────────── */
+.message {
+  display: flex;
+  flex-direction: column;
+  max-width: 88%;
+  animation: msg-in 180ms ease;
+}
+.message.user      { align-self: flex-end;  align-items: flex-end; }
+.message.assistant { align-self: flex-start; align-items: flex-start; }
+
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.message-bubble {
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+.message.user .message-bubble {
+  background: #4f46e5;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.message.assistant .message-bubble {
+  background: #1a1a24;
+  color: #e8e8f0;
+  border: 1px solid #2e2e42;
+  border-bottom-left-radius: 4px;
+}
+.message.tool .message-bubble {
+  background: #1a1a24;
+  border: 1px solid #2e2e42;
+  color: #8888a8;
+  font-size: 11.5px;
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+.message-meta {
+  font-size: 10px;
+  color: #5a5a7a;
+  margin-top: 3px;
+  padding: 0 3px;
+}
+
+/* ── Markdown in bubbles ──────────────────────────────────────────────────── */
+.message-bubble p + p    { margin-top: 6px; }
+.message-bubble strong   { font-weight: 700; }
+.message-bubble em       { font-style: italic; opacity: 0.9; }
+.message-bubble code {
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  font-size: 11.5px;
+  background: rgba(0,0,0,0.25);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.message.user .message-bubble code { background: rgba(255,255,255,0.15); }
+.message-bubble pre {
+  background: rgba(0,0,0,0.35);
+  border-radius: 6px;
+  padding: 9px 11px;
+  margin-top: 7px;
+  overflow-x: auto;
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre;
+}
+.message-bubble ul, .message-bubble ol { padding-left: 16px; margin-top: 5px; }
+.message-bubble li + li { margin-top: 2px; }
+
+/* ── Loading dots ─────────────────────────────────────────────────────────── */
+.loading-dot {
+  width: 6px; height: 6px;
+  background: #8888a8;
+  border-radius: 50%;
+  animation: bounce 1.2s infinite ease-in-out;
+}
+.loading-dot:nth-child(2) { animation-delay: 0.15s; }
+.loading-dot:nth-child(3) { animation-delay: 0.30s; }
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0);   opacity: 0.4; }
+  30%            { transform: translateY(-5px); opacity: 1; }
+}
+
+/* ── Share toast ──────────────────────────────────────────────────────────── */
+.share-toast {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: #222232;
+  border: 1px solid #2e2e42;
+  color: #e8e8f0;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  opacity: 0;
+  transition: opacity 200ms ease, transform 200ms ease;
+  pointer-events: none;
+  z-index: 999;
+  white-space: nowrap;
+}
+.share-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

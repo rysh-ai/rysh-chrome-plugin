@@ -3,17 +3,20 @@
   "name": "Rysh AI",
   "version": "0.1.0",
   "description": "AI-powered chat assistant for your browser, powered by Rysh",
-  "permissions": ["storage", "activeTab", "scripting", "tabs"],
+  "permissions": ["storage", "activeTab", "scripting", "tabs", "sidePanel"],
   "host_permissions": [
     "https://*.rysh.ai/*",
-    "http://localhost:*/*"
+    "http://localhost:*/*",
+    "<all_urls>"
   ],
+  "side_panel": {
+    "default_path": "popup.html"
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
-    "default_popup": "popup.html",
     "default_title": "Rysh AI",
     "default_icon": {
       "16": "icons/icon16.png",

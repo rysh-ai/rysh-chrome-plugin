@@ -29,6 +29,26 @@
         <span id="error-message"></span>
       </div>
 
+      <!-- Server URL input -->
+      <div class="form-group">
+        <label class="form-label" for="server-url-input">Rysh Server URL</label>
+        <input
+          type="url"
+          id="server-url-input"
+          class="form-input"
+          placeholder="https://rysh.ai"
+          value="https://rysh.ai"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <p class="form-hint">
+          Leave as <code style="font-size:11px;background:rgba(255,255,255,0.06);padding:1px 4px;border-radius:3px;">https://rysh.ai</code>
+          for production, or change to
+          <code style="font-size:11px;background:rgba(255,255,255,0.06);padding:1px 4px;border-radius:3px;">http://localhost:34080</code>
+          for local dev.
+        </p>
+      </div>
+
       <!-- API key input -->
       <div class="form-group">
         <label class="form-label" for="api-key-input">Rysh Server API Key</label>

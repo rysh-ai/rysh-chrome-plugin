@@ -7,6 +7,7 @@ import apiService  from './api.js';
 const setupScreen      = document.getElementById('setup-screen');
 const chatScreen       = document.getElementById('chat-screen');
 const openAuthBtn      = document.getElementById('open-auth-btn');
+const shareBtn         = document.getElementById('share-btn');
 const newChatBtn       = document.getElementById('new-chat-btn');
 const menuBtn          = document.getElementById('menu-btn');
 const dropdownMenu     = document.getElementById('dropdown-menu');
@@ -27,6 +28,7 @@ let isLoading           = false;
 let currentBubble       = null;   // streaming: current assistant bubble element
 let currentBubbleText   = '';     // streaming: accumulated text for current bubble
 let pendingApproval     = null;   // current approval request waiting for user
+let activeShareID       = null;   // shareID if pane is currently shared
 
 // ── Startup: load server URL config, wire up event handlers ───────────────────
 (async () => {
@@ -66,6 +68,75 @@ openAuthBtn.addEventListener('click', () => {
   chrome.runtime.sendMessage({ type: 'OPEN_AUTH' });
 });
 
+// ── Share pane ────────────────────────────────────────────────────────────────
+shareBtn.addEventListener('click', async () => {
+  const token = await authService.getToken();
+  if (!token || !apiService._paneID) return;
+
+  // If already shared, just re-copy the command to clipboard.
+  if (activeShareID) {
+    const cmd = '##upstream subscribe ' + activeShareID;
+    await copyToClipboard(cmd);
+    flashShareBtn('Copied!');
+    return;
+  }
+
+  shareBtn.disabled = true;
+  try {
+    const serverURL = await authService.getServerURL();
+    const resp = await fetch(`${serverURL}/api/browser-panes/${apiService._paneID}/share`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!resp.ok) throw new Error(`Share failed: ${resp.status}`);
+    const data = await resp.json();
+    activeShareID = data.share_id;
+    await copyToClipboard(data.subscribe_cmd);
+    setShareActive(true);
+    flashShareBtn('Copied!');
+  } catch (err) {
+    showError('Share failed: ' + err.message);
+  } finally {
+    shareBtn.disabled = false;
+  }
+});
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    // Fallback for contexts where clipboard API is restricted.
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+}
+
+function setShareActive(active) {
+  shareBtn.classList.toggle('share-active', active);
+  shareBtn.title = active
+    ? 'Pane shared — click to copy ##upstream subscribe command again'
+    : 'Share pane — copies ##upstream subscribe command';
+}
+
+function flashShareBtn(label) {
+  const toast = document.createElement('div');
+  toast.className = 'share-toast';
+  toast.textContent = label;
+  document.body.appendChild(toast);
+  // Trigger reflow then animate in.
+  requestAnimationFrame(() => toast.classList.add('visible'));
+  setTimeout(() => {
+    toast.classList.remove('visible');
+    setTimeout(() => toast.remove(), 300);
+  }, 1800);
+}
+
 // ── New chat ──────────────────────────────────────────────────────────────────
 newChatBtn.addEventListener('click', async () => {
   const token = await authService.getToken();
@@ -80,6 +151,8 @@ newChatBtn.addEventListener('click', async () => {
   hideError();
   closeMenu();
   resetStatus();
+  activeShareID = null;
+  setShareActive(false);
 });
 
 // ── Menu ──────────────────────────────────────────────────────────────────────

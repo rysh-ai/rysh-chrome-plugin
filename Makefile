@@ -45,7 +45,7 @@ ZIP_EXCLUDES := \
 	"node_modules/*"
 
 # ── Phony targets ─────────────────────────────────────────────────────────────
-.PHONY: help icons validate pack token upload publish deploy clean open check-deps
+.PHONY: help icons validate pack token upload publish deploy clean open check-deps build
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Help
@@ -60,6 +60,14 @@ help: ## Show available targets
 	@echo "  Secrets are read from .env (CLIENT_ID, CLIENT_SECRET,"
 	@echo "  REFRESH_TOKEN, EXTENSION_ID) or passed on the command line."
 	@echo ""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# React build (produces dist/)
+# ─────────────────────────────────────────────────────────────────────────────
+build: ## Install npm deps and build the React popup into dist/
+	npm install
+	npm run build
+	@echo "✓ Built → dist/"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Dependency check
@@ -81,24 +89,24 @@ icons: ## Generate icons/icon{16,48,128}.png via Node.js (no external deps)
 # ─────────────────────────────────────────────────────────────────────────────
 # Validation
 # ─────────────────────────────────────────────────────────────────────────────
-validate: ## Validate manifest.json and check all required files exist
-	@echo "Validating extension..."
+validate: build ## Build first, then validate the dist/ extension
+	@echo "Validating extension in dist/..."
 
 	@# Check manifest.json is valid JSON
-	@node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8'))" \
+	@node -e "JSON.parse(require('fs').readFileSync('dist/manifest.json','utf8'))" \
 		&& echo "  ✓ manifest.json is valid JSON" \
 		|| { echo "  ✗ manifest.json is invalid JSON"; exit 1; }
 
 	@# Check manifest_version is 3
 	@node -e " \
-		const m = JSON.parse(require('fs').readFileSync('manifest.json','utf8')); \
+		const m = JSON.parse(require('fs').readFileSync('dist/manifest.json','utf8')); \
 		if (m.manifest_version !== 3) { console.error('  ✗ manifest_version must be 3'); process.exit(1); } \
 		console.log('  ✓ manifest_version: 3'); \
 	"
 
 	@# Check required manifest fields
 	@node -e " \
-		const m = JSON.parse(require('fs').readFileSync('manifest.json','utf8')); \
+		const m = JSON.parse(require('fs').readFileSync('dist/manifest.json','utf8')); \
 		['name','version','description'].forEach(f => { \
 			if (!m[f]) { console.error('  ✗ manifest.' + f + ' is missing'); process.exit(1); } \
 			console.log('  ✓ manifest.' + f + ':', m[f]); \
@@ -107,15 +115,15 @@ validate: ## Validate manifest.json and check all required files exist
 
 	@# Check icon files exist
 	@for size in 16 48 128; do \
-		f="icons/icon$${size}.png"; \
+		f="dist/icons/icon$${size}.png"; \
 		if [ -f "$$f" ]; then echo "  ✓ $$f exists"; \
-		else echo "  ✗ $$f missing — run: make icons"; exit 1; fi; \
+		else echo "  ✗ $$f missing — run: make build"; exit 1; fi; \
 	done
 
-	@# Check core JS/HTML files exist
-	@for f in background.js popup.html popup.js auth.html auth.js authService.js api.js storage.js; do \
-		if [ -f "$$f" ]; then echo "  ✓ $$f exists"; \
-		else echo "  ✗ $$f missing"; exit 1; fi; \
+	@# Check core dist files exist
+	@for f in popup.html background.js auth.html auth.js authService.js storage.js; do \
+		if [ -f "dist/$$f" ]; then echo "  ✓ dist/$$f exists"; \
+		else echo "  ✗ dist/$$f missing"; exit 1; fi; \
 	done
 
 	@echo "✓ Validation passed"
@@ -123,10 +131,9 @@ validate: ## Validate manifest.json and check all required files exist
 # ─────────────────────────────────────────────────────────────────────────────
 # Packaging
 # ─────────────────────────────────────────────────────────────────────────────
-pack: validate ## Build the submission ZIP (runs validate + icons first)
+pack: validate ## Build the submission ZIP from dist/ (runs build + validate first)
 	@rm -f $(ZIP_FILE)
-	@zip -r $(ZIP_FILE) . \
-		$(foreach excl,$(ZIP_EXCLUDES),--exclude $(excl))
+	@cd dist && zip -r ../$(ZIP_FILE) .
 	@echo "✓ Packed → $(ZIP_FILE) ($$(du -h $(ZIP_FILE) | cut -f1))"
 
 # ─────────────────────────────────────────────────────────────────────────────

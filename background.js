@@ -2,6 +2,13 @@
 
 import authService from './authService.js';
 
+// ── Side panel: open on toolbar icon click ───────────────────────────────────
+// openPanelOnActionClick makes Chrome open the side panel automatically when
+// the user clicks the Rysh AI toolbar icon, without needing a popup.
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch(console.error);
+
 // ── First install: open the auth/onboarding tab ─────────────────────────────
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason === 'install') {
@@ -34,21 +41,51 @@ async function handleMessage({ type }) {
       return { ok: true };
 
     case 'GET_PAGE_CONTEXT': {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      // Side panels share the window with the active browser tab, but
+      // currentWindow refers to the side-panel window, not the tab window.
+      // Query lastFocusedWindow first; fall back to currentWindow.
+      let tab = null;
+      const [lastFocused] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (lastFocused?.id) {
+        tab = lastFocused;
+      } else {
+        const [current] = await chrome.tabs.query({ active: true, currentWindow: true });
+        tab = current ?? null;
+      }
       if (!tab?.id) return { context: null };
+
+      // Skip chrome:// and other protected system pages (scripting not allowed).
+      const url = tab.url ?? '';
+      if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') ||
+          url.startsWith('about:') || url === '') {
+        return { context: { url, title: tab.title ?? '', selected: '', description: '', body: '' } };
+      }
+
       try {
         const [{ result }] = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          func: () => ({
-            title:       document.title,
-            url:         location.href,
-            selected:    getSelection()?.toString() ?? '',
-            description: document.querySelector('meta[name="description"]')?.content ?? '',
-          }),
+          func: () => {
+            const MAX_BODY = 8000;
+            // Prefer focused/readable content nodes over the full body.
+            const readable =
+              document.querySelector('article')?.innerText ||
+              document.querySelector('main')?.innerText   ||
+              document.querySelector('[role="main"]')?.innerText ||
+              document.body?.innerText || '';
+            return {
+              title:       document.title,
+              url:         location.href,
+              selected:    getSelection()?.toString() ?? '',
+              description: document.querySelector('meta[name="description"]')?.content ?? '',
+              body:        readable.substring(0, MAX_BODY).trim(),
+            };
+          },
         });
         return { context: result };
-      } catch {
-        return { context: null };
+      } catch (err) {
+        // Script injection failed (CSP, cross-origin iframe, etc.) — return
+        // what we already know from the tab metadata.
+        return { context: { url, title: tab.title ?? '', selected: '', description: '', body: '' } };
       }
     }
 
