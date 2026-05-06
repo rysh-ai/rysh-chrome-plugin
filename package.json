@@ -1,0 +1,13 @@
+{
+  "name": "rysh-chrome-plugin",
+  "version": "0.1.0",
+  "description": "Rysh AI Chrome extension",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "icons": "node icons/generate-icons.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
