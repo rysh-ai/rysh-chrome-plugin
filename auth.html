@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rysh AI — Set Up</title>
+  <link rel="stylesheet" href="auth.css" />
+</head>
+<body>
+  <div class="auth-card">
+
+    <!-- Logo -->
+    <div class="auth-logo">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+      </svg>
+    </div>
+
+    <!-- Form -->
+    <div id="form-state">
+      <h1 class="auth-title">Welcome to Rysh AI</h1>
+      <p class="auth-subtitle">Enter your API key to get started. Your key is stored locally in the browser.</p>
+
+      <!-- Error / success alerts -->
+      <div class="alert alert-error hidden" id="error-alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span id="error-message"></span>
+      </div>
+
+      <!-- API key input -->
+      <div class="form-group">
+        <label class="form-label" for="api-key-input">Rysh Server API Key</label>
+        <div class="input-wrapper">
+          <input
+            type="password"
+            id="api-key-input"
+            class="form-input"
+            placeholder="rysh_…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button class="toggle-visibility" id="toggle-visibility" type="button" title="Toggle visibility" aria-label="Toggle key visibility">
+            <svg id="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+            <svg id="eye-off-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+              <line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+          </button>
+        </div>
+        <p class="form-hint">
+          Generate an API key from the
+          <a href="https://rysh.ai/dashboard" target="_blank" rel="noopener">Rysh web dashboard</a>.
+          Keys start with <code style="font-size:11px;background:rgba(255,255,255,0.06);padding:1px 4px;border-radius:3px;">rysh_</code>
+        </p>
+      </div>
+
+      <!-- Submit -->
+      <button class="btn-primary" id="authorize-btn" type="button">
+        <div class="spinner"></div>
+        <span class="btn-text">Authorize &amp; Continue</span>
+      </button>
+
+      <div class="divider">what gets stored locally</div>
+
+      <div class="info-box">
+        <strong>Privacy first.</strong> Rysh AI stores only:
+        <ul>
+          <li>Your API key (in <code>chrome.storage.local</code>)</li>
+          <li>Your chat session (in memory, cleared when you close the popup)</li>
+        </ul>
+        <br/>
+        Your key is sent only to your configured Rysh server, never to third parties.
+      </div>
+    </div>
+
+    <!-- Success state -->
+    <div class="success-state" id="success-state">
+      <div class="success-icon">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2 class="success-title">All set!</h2>
+      <p class="success-text">Your API key has been saved. You can now use Rysh AI from the browser toolbar.</p>
+      <button class="btn-primary" id="close-btn" type="button">
+        <span class="btn-text">Close this tab</span>
+      </button>
+    </div>
+
+    <p class="auth-footer">
+      By continuing you agree to the
+      <a href="https://rysh.ai/terms" target="_blank" rel="noopener">Terms of Service</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://rysh.ai/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+    </p>
+
+  </div>
+
+  <script type="module" src="auth.js"></script>
+</body>
+</html>
