@@ -7,6 +7,7 @@ import PaneOutput from './PaneOutput';
 import PaneInput from './PaneInput';
 import ErrorBanner from './ErrorBanner';
 import ApprovalDialog from './ApprovalDialog';
+import BrowserActionIndicator from './BrowserActionIndicator';
 import DebugOverlay from './DebugOverlay';
 
 /**
@@ -17,6 +18,7 @@ import DebugOverlay from './DebugOverlay';
  */
 export default function ChatScreen() {
   useKeyboard();
+  const browserAction = useStore(s => s.browserAction);
 
   useEffect(() => {
     // ── AI/prompt output (streaming chunks) ──────────────────────────────────
@@ -46,6 +48,11 @@ export default function ChatScreen() {
         });
         store.setIsLoading(true);
         return;
+      }
+
+      // Track browser actions for the indicator.
+      if (type === 'tool_call' && content.startsWith('Browser: ')) {
+        store.setBrowserAction(content.replace('Browser: ', ''));
       }
 
       if (type === 'text' || type === 'diff') {
@@ -91,6 +98,7 @@ export default function ChatScreen() {
         store.finalizeStreaming();
         store.setIsLoading(false);
         store.setStatusText('');
+        store.setBrowserAction(null);
         if (phase === 'error') {
           store.setErrorMessage('The agentic run ended with an error.');
         }
@@ -129,6 +137,7 @@ export default function ChatScreen() {
   return (
     <div className="flex flex-col w-full h-full bg-bg overflow-hidden">
       <Header />
+      <BrowserActionIndicator action={browserAction} />
       <PaneOutput />
       <ErrorBanner />
       <ApprovalDialog />

@@ -84,6 +84,10 @@ interface Store {
   setShareActive:            (v: boolean) => void;
   setActiveShareID:          (id: string | null) => void;
   setActiveShareWorkspace:   (ws: string | null) => void;
+
+  // ── Browser action ──────────────────────────────────────────────────────
+  browserAction: string | null;
+  setBrowserAction: (action: string | null) => void;
 }
 
 export const useStore = create<Store>((set, get) => ({
@@ -183,4 +187,8 @@ export const useStore = create<Store>((set, get) => ({
   setShareActive:            (v)  => set({ shareActive: v }),
   setActiveShareID:          (id) => set({ activeShareID: id }),
   setActiveShareWorkspace:   (ws) => set({ activeShareWorkspace: ws }),
+
+  // ── Browser action ──────────────────────────────────────────────────────
+  browserAction: null,
+  setBrowserAction: (action) => set({ browserAction: action }),
 }));
