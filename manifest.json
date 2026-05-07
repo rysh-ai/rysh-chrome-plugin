@@ -6,7 +6,6 @@
   "permissions": ["storage", "activeTab", "scripting", "tabs", "sidePanel"],
   "host_permissions": [
     "https://*.rysh.ai/*",
-    "http://localhost:*/*",
     "<all_urls>"
   ],
   "side_panel": {
