@@ -22,7 +22,7 @@ export default function ChatScreen() {
 
   useEffect(() => {
     // ── AI/prompt output (streaming chunks) ──────────────────────────────────
-    const offOutput = apiService.onOutput(({ type, content }) => {
+    const offOutput = apiService.onOutput(({ type, content, metadata }) => {
       const store = useStore.getState();
 
       if (type === 'error') {
@@ -39,12 +39,14 @@ export default function ChatScreen() {
         if (store.inputMode !== 'prompt') {
           store.setInputMode('prompt');
         }
+        const sender = (metadata?.sender as string) || undefined;
         store.addMessage({
           id:        crypto.randomUUID(),
           role:      'user',
           content,
           timestamp: new Date(),
           mode:      'prompt',
+          sender,
         });
         store.setIsLoading(true);
         return;

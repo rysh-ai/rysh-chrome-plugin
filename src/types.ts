@@ -44,6 +44,8 @@ export interface Message {
   mode: InputMode;
   /** True while the assistant is still streaming this message. */
   streaming?: boolean;
+  /** Name of the remote sender (for share commands). */
+  sender?: string;
 }
 
 // ── Approval ───────────────────────────────────────────────────────────────

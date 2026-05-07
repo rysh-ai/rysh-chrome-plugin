@@ -15,7 +15,7 @@ function formatTime(date: Date): string {
  * Uses the same CSS classes as the original popup.css for visual continuity.
  */
 export default function MessageBubble({ message }: Props) {
-  const { role, content, timestamp } = message;
+  const { role, content, timestamp, sender } = message;
 
   if (role === 'tool') {
     return (
@@ -27,6 +27,11 @@ export default function MessageBubble({ message }: Props) {
 
   return (
     <div className={`message ${role}`}>
+      {sender && (
+        <div className="text-[10px] text-primary-light font-medium mb-0.5 px-1 opacity-80">
+          ↗ remote: {sender}
+        </div>
+      )}
       <div
         className="message-bubble"
         dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
