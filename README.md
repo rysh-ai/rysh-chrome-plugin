@@ -70,4 +70,4 @@ For bundled production builds, add esbuild or Rollup targeting `"chrome"`.
 
 ## License
 
-MIT © Rysh
+Proprietary — All rights reserved © Rysh AI
