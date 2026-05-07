@@ -102,6 +102,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: () => window.history.back(),
     });
     await this.sleep(500);
@@ -112,6 +113,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: () => window.history.forward(),
     });
     await this.sleep(500);
@@ -132,6 +134,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (selector: string, text: string | undefined, index: number) => {
         const resolve = (window as any).__rysh_resolve_selector;
         if (!resolve) return { error: 'Selector resolver not injected' };
@@ -156,6 +159,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (selector: string, text: string, clear: boolean) => {
         const resolve = (window as any).__rysh_resolve_selector;
         if (!resolve) return { error: 'Selector resolver not injected' };
@@ -190,6 +194,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (selector: string, value: string | undefined, text: string | undefined) => {
         const resolve = (window as any).__rysh_resolve_selector;
         if (!resolve) return { error: 'Selector resolver not injected' };
@@ -214,6 +219,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (selector: string, checked: boolean) => {
         const resolve = (window as any).__rysh_resolve_selector;
         if (!resolve) return { error: 'Selector resolver not injected' };
@@ -232,6 +238,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (selector: string) => {
         const resolve = (window as any).__rysh_resolve_selector;
         if (!resolve) return { error: 'Selector resolver not injected' };
@@ -252,6 +259,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (key: string, modifiers: string[]) => {
         const opts: KeyboardEventInit = {
           key, bubbles: true, cancelable: true,
@@ -278,6 +286,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (fromSel: string, toSel: string) => {
         const from = document.querySelector(fromSel);
         const to = document.querySelector(toSel);
@@ -301,6 +310,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (direction: string, amount: number, selector: string | undefined) => {
         const target = selector ? document.querySelector(selector) : null;
         const scrollTarget = target || window;
@@ -326,6 +336,7 @@ export class BrowserActionExecutor {
     const timeout = params.timeout_ms ?? 10000;
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (selector: string | undefined, timeoutMs: number, needsVisible: boolean) => {
         return new Promise<any>((resolve) => {
           if (!selector) {
@@ -369,6 +380,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (selector: string | undefined) => {
         const el = selector ? document.querySelector(selector) : document.body;
         if (!el) return { error: `Element not found: ${selector}` };
@@ -384,6 +396,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (selector: string | undefined, outer: boolean) => {
         const el = selector ? document.querySelector(selector) : document.body;
         if (!el) return { error: `Element not found: ${selector}` };
@@ -400,6 +413,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (selector: string, attributes: string[], limit: number) => {
         let els: NodeListOf<Element>;
         try {
@@ -437,6 +451,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (selector: string) => {
         const el = document.querySelector(selector) as HTMLInputElement;
         if (!el) return { error: `Element not found: ${selector}` };
@@ -515,6 +530,7 @@ export class BrowserActionExecutor {
     const tab = await this.getActiveTab();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
+      world: 'MAIN',
       func: (code: string) => {
         try {
           // eslint-disable-next-line no-eval
