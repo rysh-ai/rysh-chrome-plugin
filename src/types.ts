@@ -64,7 +64,7 @@ export interface PendingApproval {
 // ── API event payloads ─────────────────────────────────────────────────────
 
 export interface OutputEvent {
-  type: 'text' | 'tool_call' | 'tool_result' | 'diff' | 'error' | 'shell' | 'rysh' | 'chat' | 'user_prompt';
+  type: 'text' | 'tool_call' | 'tool_result' | 'diff' | 'error' | 'shell' | 'rysh' | 'chat' | 'user_prompt' | 'browser_action';
   content: string;
   metadata?: Record<string, unknown>;
 }

@@ -4,14 +4,16 @@
 import { storage }    from './storage';
 import { NATSClient } from './nats-client';
 import { debugLog }   from './debug-log';
+import { BrowserActionExecutor } from './browser-executor';
 import type { InputMode, OutputEvent, StatusEvent, PendingApproval } from '../types';
 
 const DEFAULT_SERVER_URL = 'https://rysh.ai';
 
 // NATSEnvelope TypeTag constants (must match rysh-shared/msg constants).
-const TAG_AGENTIC_PROMPT    = 'MsgAgenticPrompt';
-const TAG_AGENTIC_CANCEL    = 'MsgAgenticCancel';
-const TAG_APPROVAL_RESPONSE = 'MsgApprovalResponse';
+const TAG_AGENTIC_PROMPT          = 'MsgAgenticPrompt';
+const TAG_AGENTIC_CANCEL          = 'MsgAgenticCancel';
+const TAG_APPROVAL_RESPONSE       = 'MsgApprovalResponse';
+const TAG_BROWSER_ACTION_RESPONSE = 'MsgBrowserActionResponse';
 
 type OutputHandler   = (ev: OutputEvent) => void;
 type StatusHandler   = (ev: StatusEvent) => void;
@@ -29,6 +31,7 @@ class APIService {
   private _connectHandlers:  VoidHandler[]     = [];
   private _disconnectHandlers: VoidHandler[]   = [];
   private _unsubs: Array<() => void>           = [];
+  private _browserExecutor = new BrowserActionExecutor();
   // Track active share so ##share list can report it.
   private _activeShareID: string | null = null;
 
@@ -508,7 +511,38 @@ class APIService {
       void this._handleInboundShareCommand(prompt);
     });
 
-    this._unsubs.push(u1, u2, u3, u4, u5, u6, u7);
+    // Browser action requests — the server-side AI tool sends browser actions
+    // (navigate, click, type, screenshot, etc.) to be executed in the browser.
+    const u8 = this._natsClient.subscribe(`rysh.pane.${id}.browser.request`, async (_tag, payload) => {
+      const requestId = (payload.request_id as string) || '';
+      const action    = (payload.action as string) || '';
+      debugLog(`browser.request → ${action} (${requestId.slice(0, 8)})`);
+
+      // Show the action in the UI as a tool call.
+      this._outputHandlers.forEach(h => h({
+        type: 'tool_call',
+        content: `Browser: ${action}`,
+        metadata: { action, request_id: requestId },
+      }));
+
+      // Execute the browser action.
+      const result = await this._browserExecutor.execute({
+        request_id: requestId,
+        action,
+        params: (payload.params as Record<string, any>) || {},
+      });
+
+      debugLog(`browser.response ← ${result.success ? 'ok' : 'error'} (${requestId.slice(0, 8)})`);
+
+      // Publish the result back to the server.
+      this._natsClient!.publish(
+        `rysh.pane.${id}.browser.response`,
+        TAG_BROWSER_ACTION_RESPONSE,
+        { ...result },
+      );
+    });
+
+    this._unsubs.push(u1, u2, u3, u4, u5, u6, u7, u8);
   }
 }
 
