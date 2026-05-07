@@ -135,7 +135,7 @@ export class BrowserActionExecutor {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
       world: 'MAIN',
-      func: (selector: string, text: string | undefined, index: number) => {
+      func: (selector: string, text: string | null, index: number) => {
         const resolve = (window as any).__rysh_resolve_selector;
         if (!resolve) return { error: 'Selector resolver not injected' };
         const el = resolve(selector, text, index);
@@ -148,7 +148,7 @@ export class BrowserActionExecutor {
           clicked: true,
         };
       },
-      args: [params.selector, params.text, params.index ?? 0],
+      args: [params.selector, params.text ?? null, params.index ?? 0],
     });
     return results[0]?.result;
   }
@@ -184,7 +184,7 @@ export class BrowserActionExecutor {
         el.dispatchEvent(new Event('change', { bubbles: true }));
         return { typed: text, selector, value: el.value };
       },
-      args: [params.selector, params.text, params.clear ?? true],
+      args: [params.selector, params.text ?? '', params.clear ?? true],
     });
     return results[0]?.result;
   }
@@ -195,7 +195,7 @@ export class BrowserActionExecutor {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
       world: 'MAIN',
-      func: (selector: string, value: string | undefined, text: string | undefined) => {
+      func: (selector: string, value: string | null, text: string | null) => {
         const resolve = (window as any).__rysh_resolve_selector;
         if (!resolve) return { error: 'Selector resolver not injected' };
         const el = resolve(selector) as HTMLSelectElement;
@@ -209,7 +209,7 @@ export class BrowserActionExecutor {
         el.dispatchEvent(new Event('change', { bubbles: true }));
         return { selected: target.value, text: (target.textContent || '').trim() };
       },
-      args: [params.selector, params.value, params.text],
+      args: [params.selector, params.value ?? null, params.text ?? null],
     });
     return results[0]?.result;
   }
@@ -228,7 +228,7 @@ export class BrowserActionExecutor {
         if (el.checked !== checked) el.click();
         return { checked: el.checked, selector };
       },
-      args: [params.selector, params.checked],
+      args: [params.selector, params.checked ?? false],
     });
     return results[0]?.result;
   }
@@ -274,7 +274,7 @@ export class BrowserActionExecutor {
         target.dispatchEvent(new KeyboardEvent('keyup', opts));
         return { key, modifiers, sent: true };
       },
-      args: [params.key, params.modifiers ?? []],
+      args: [params.key ?? '', params.modifiers ?? []],
     });
     return results[0]?.result;
   }
@@ -311,7 +311,7 @@ export class BrowserActionExecutor {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
       world: 'MAIN',
-      func: (direction: string, amount: number, selector: string | undefined) => {
+      func: (direction: string, amount: number, selector: string | null) => {
         const target = selector ? document.querySelector(selector) : null;
         const scrollTarget = target || window;
         const px = amount || 500;
@@ -324,7 +324,7 @@ export class BrowserActionExecutor {
         }
         return { scrolled: direction, amount: px };
       },
-      args: [params.direction, params.amount ?? 500, params.selector],
+      args: [params.direction ?? 'down', params.amount ?? 500, params.selector ?? null],
     });
     return results[0]?.result;
   }
@@ -337,7 +337,7 @@ export class BrowserActionExecutor {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
       world: 'MAIN',
-      func: (selector: string | undefined, timeoutMs: number, needsVisible: boolean) => {
+      func: (selector: string | null, timeoutMs: number, needsVisible: boolean) => {
         return new Promise<any>((resolve) => {
           if (!selector) {
             // Wait for page idle
@@ -369,7 +369,7 @@ export class BrowserActionExecutor {
           }, timeoutMs);
         });
       },
-      args: [params.selector, timeout, params.visible ?? false],
+      args: [params.selector ?? null, timeout, params.visible ?? false],
     });
     return results[0]?.result;
   }
@@ -381,13 +381,13 @@ export class BrowserActionExecutor {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
       world: 'MAIN',
-      func: (selector: string | undefined) => {
+      func: (selector: string | null) => {
         const el = selector ? document.querySelector(selector) : document.body;
         if (!el) return { error: `Element not found: ${selector}` };
         const text = (el.textContent || '').trim();
         return { text: text.substring(0, 50000), length: text.length, truncated: text.length > 50000 };
       },
-      args: [params.selector],
+      args: [params.selector ?? null],
     });
     return results[0]?.result;
   }
@@ -397,13 +397,13 @@ export class BrowserActionExecutor {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
       world: 'MAIN',
-      func: (selector: string | undefined, outer: boolean) => {
+      func: (selector: string | null, outer: boolean) => {
         const el = selector ? document.querySelector(selector) : document.body;
         if (!el) return { error: `Element not found: ${selector}` };
         const html = outer ? el.outerHTML : el.innerHTML;
         return { html: html.substring(0, 50000), length: html.length, truncated: html.length > 50000 };
       },
-      args: [params.selector, params.outer ?? false],
+      args: [params.selector ?? null, params.outer ?? false],
     });
     return results[0]?.result;
   }
