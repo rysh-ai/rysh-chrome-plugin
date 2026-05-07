@@ -512,14 +512,16 @@ export class BrowserActionExecutor {
 
   private async screenshot(): Promise<any> {
     const tab = await this.getActiveTab();
-    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId!, { format: 'png' });
-    const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+    // Use JPEG at quality 40 to keep the payload under NATS's 1MB max.
+    // A full-res PNG can be 2-3MB which exceeds the limit after base64 encoding.
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId!, { format: 'jpeg', quality: 40 });
+    const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '');
     return {
       screenshot: base64,
-      format: 'png',
+      format: 'jpeg',
       tab_title: tab.title,
       tab_url: tab.url,
-      note: 'Screenshot captured as base64 PNG. The image data is in the screenshot field.',
+      note: 'Screenshot captured as base64 JPEG. The image data is in the screenshot field.',
     };
   }
 

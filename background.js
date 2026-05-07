@@ -65,19 +65,18 @@ async function handleMessage({ type }) {
         const [{ result }] = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           func: () => {
-            const MAX_BODY = 8000;
-            // Prefer focused/readable content nodes over the full body.
-            const readable =
-              document.querySelector('article')?.innerText ||
-              document.querySelector('main')?.innerText   ||
-              document.querySelector('[role="main"]')?.innerText ||
-              document.body?.innerText || '';
+            const MAX_BODY = 30000;
+            // Capture the full page body text so sidebars, nav lists, etc.
+            // are included.  Also capture focused/article content separately
+            // for pages where body.innerText is huge but the main content is
+            // what the user cares about.
+            const fullBody = (document.body?.innerText || '').substring(0, MAX_BODY).trim();
             return {
               title:       document.title,
               url:         location.href,
               selected:    getSelection()?.toString() ?? '',
               description: document.querySelector('meta[name="description"]')?.content ?? '',
-              body:        readable.substring(0, MAX_BODY).trim(),
+              body:        fullBody,
             };
           },
         });
