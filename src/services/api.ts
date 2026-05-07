@@ -378,7 +378,7 @@ class APIService {
    * and submits the prompt with context prepended — same as a local prompt
    * submission in prompt mode.
    */
-  private async _handleInboundShareCommand(prompt: string) {
+  private async _handleInboundShareCommand(prompt: string, sender = 'remote') {
     if (!this._natsClient || !this._paneID) return;
 
     const token = await storage.get('auth_token') as string | null;
@@ -436,7 +436,11 @@ class APIService {
     }
 
     // 4) Show the user prompt in the chat UI (same as PaneInput does for local prompts).
-    this._emitOutput('user_prompt', prompt);
+    this._outputHandlers.forEach(h => h({
+      type: 'user_prompt',
+      content: prompt,
+      metadata: { sender },
+    }));
 
     // 5) Submit to agentic actor.
     this._natsClient.publish(
@@ -508,7 +512,7 @@ class APIService {
       debugLog(`share.command.inbound from ${sender}: ${prompt.slice(0, 50)}`);
       if (!prompt) return;
       // Fire-and-forget: capture context and submit.
-      void this._handleInboundShareCommand(prompt);
+      void this._handleInboundShareCommand(prompt, sender);
     });
 
     // Browser action requests — the server-side AI tool sends browser actions
