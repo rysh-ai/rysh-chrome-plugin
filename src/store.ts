@@ -1,11 +1,17 @@
 import { create } from 'zustand';
-import type { InputMode, Message, PendingApproval } from './types';
+import type { InputMode, Message, PendingApproval, ConversationMessage } from './types';
 import { MODE_CYCLE } from './types';
 
 // Per-mode history (newest-first, matching internal/web).
 interface PerModeStr { shell: string; prompt: string; rysh: string; chat: string; }
 interface PerModeNum { shell: number; prompt: number; rysh: number; chat: number; }
 interface PerModeArr { shell: string[]; prompt: string[]; rysh: string[]; chat: string[]; }
+
+// Turn-based limits per conversation mode.
+const TURN_LIMITS: Record<string, number> = {
+  shell: 200, ai: 100, rysh: 50, chat: 200,
+  email: 100, slack: 100, chatbot: 100,
+};
 
 interface Store {
   // ── Input mode ──────────────────────────────────────────────────────────
@@ -88,6 +94,11 @@ interface Store {
   // ── Browser action ──────────────────────────────────────────────────────
   browserAction: string | null;
   setBrowserAction: (action: string | null) => void;
+
+  // ── Structured conversations (ConversationMessage-based) ──────────────
+  conversations: ConversationMessage[];
+  appendConversation: (cm: ConversationMessage) => void;
+  clearConversations: () => void;
 }
 
 export const useStore = create<Store>((set, get) => ({
@@ -191,4 +202,19 @@ export const useStore = create<Store>((set, get) => ({
   // ── Browser action ──────────────────────────────────────────────────────
   browserAction: null,
   setBrowserAction: (action) => set({ browserAction: action }),
+
+  // ── Structured conversations ──────────────────────────────────────────
+  conversations: [],
+  appendConversation: (cm) => set(s => {
+    const limit = TURN_LIMITS[cm.conversation_type] || 200;
+    const next = [...s.conversations, cm];
+    // Turn-based eviction: count unique turn_ids, drop oldest turns.
+    const turnIds = [...new Set(next.map(m => m.turn_id))];
+    if (turnIds.length > limit) {
+      const keepTurnIds = new Set(turnIds.slice(-limit));
+      return { conversations: next.filter(m => keepTurnIds.has(m.turn_id)) };
+    }
+    return { conversations: next };
+  }),
+  clearConversations: () => set({ conversations: [] }),
 }));
