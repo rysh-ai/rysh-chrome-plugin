@@ -48,6 +48,35 @@ export interface Message {
   sender?: string;
 }
 
+// ── Unified conversation types (messaging refactoring) ────────────────────
+
+export type ConversationType =
+  | 'shell' | 'ai' | 'rysh' | 'chat'
+  | 'email' | 'slack' | 'chatbot';
+
+export type TurnType = 'question' | 'answer';
+
+export type InputTypeEnum =
+  | 'shell' | 'prompt' | 'command' | 'approval' | 'message';
+
+export type MessageSource =
+  | 'human' | 'ai' | 'external' | 'agent'
+  | 'subagent' | 'humanoid' | 'system';
+
+export interface ConversationMessage {
+  turn_id: string;
+  turn_type: TurnType;
+  conversation_type: ConversationType;
+  input_type: InputTypeEnum;
+  message_source: MessageSource;
+  content: string;
+  timestamp_ms: number;
+  sensitive?: boolean;
+  subject_to_share?: boolean;
+  role?: string;
+  streaming?: boolean;
+}
+
 // ── Approval ───────────────────────────────────────────────────────────────
 
 export interface DiffPayload {
