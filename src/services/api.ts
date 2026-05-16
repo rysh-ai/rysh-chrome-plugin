@@ -168,7 +168,7 @@ class APIService {
       }
 
       this._natsClient.publish(
-        `rysh.pane.${this._paneID}.agentic.inbox`,
+        `rysh.pane.${this._paneID}.llm_prompt_execution.inbox`,
         TAG_AGENTIC_PROMPT,
         { request_id: crypto.randomUUID(), prompt: finalPrompt },
       );
@@ -178,7 +178,7 @@ class APIService {
     // ── Chat mode: plain AI prompt (no page context injection) ───────────────
     if (mode === 'chat') {
       this._natsClient.publish(
-        `rysh.pane.${this._paneID}.agentic.inbox`,
+        `rysh.pane.${this._paneID}.llm_prompt_execution.inbox`,
         TAG_AGENTIC_PROMPT,
         { request_id: crypto.randomUUID(), prompt: text },
       );
@@ -205,7 +205,7 @@ class APIService {
 
   cancelPrompt() {
     if (!this._natsClient || !this._paneID) return;
-    this._natsClient.publish(`rysh.pane.${this._paneID}.agentic.inbox`, TAG_AGENTIC_CANCEL, {});
+    this._natsClient.publish(`rysh.pane.${this._paneID}.llm_prompt_execution.inbox`, TAG_AGENTIC_CANCEL, {});
   }
 
   sendApprovalResponse(requestID: string, decision: string, reason = '') {
@@ -385,7 +385,7 @@ class APIService {
     if (!token) {
       debugLog('share command: no auth token, submitting without context');
       this._natsClient.publish(
-        `rysh.pane.${this._paneID}.agentic.inbox`,
+        `rysh.pane.${this._paneID}.llm_prompt_execution.inbox`,
         TAG_AGENTIC_PROMPT,
         { request_id: crypto.randomUUID(), prompt },
       );
@@ -444,7 +444,7 @@ class APIService {
 
     // 5) Submit to agentic actor.
     this._natsClient.publish(
-      `rysh.pane.${this._paneID}.agentic.inbox`,
+      `rysh.pane.${this._paneID}.llm_prompt_execution.inbox`,
       TAG_AGENTIC_PROMPT,
       { request_id: crypto.randomUUID(), prompt: finalPrompt },
     );
@@ -455,7 +455,7 @@ class APIService {
     const id = this._paneID;
 
     // AI/prompt mode — streaming agentic output.
-    const u1 = this._natsClient.subscribe(`rysh.pane.${id}.agentic.output`, (_tag, payload) => {
+    const u1 = this._natsClient.subscribe(`rysh.pane.${id}.llm_prompt_execution.output`, (_tag, payload) => {
       const type    = (payload.type as OutputEvent['type']) || 'text';
       const content = (payload.content as string)           || '';
       debugLog(`agentic.output → ${type}: ${content.slice(0, 50)}`);
@@ -467,7 +467,7 @@ class APIService {
     });
 
     // AI/prompt phase status.
-    const u2 = this._natsClient.subscribe(`rysh.pane.${id}.agentic.status`, (_tag, payload) => {
+    const u2 = this._natsClient.subscribe(`rysh.pane.${id}.llm_prompt_execution.status`, (_tag, payload) => {
       debugLog(`agentic.status → ${payload.phase}`);
       this._statusHandlers.forEach(h => h({
         phase:         (payload.phase as string)          || 'unknown',
