@@ -7,7 +7,7 @@ import { debugLog } from './debug-log';
 interface NATSEnvelope {
   t: string;   // TypeTag
   r: string;   // replyTo (optional)
-  p: string;   // base64(JSON(payload))
+  p: string;   // JSON-stringified payload (base64 for legacy, plain JSON for new format)
 }
 
 interface DecodedEnvelope {
@@ -208,30 +208,35 @@ export class NATSClient {
 
   /**
    * Encode a payload to a NATSEnvelope.
-   * btoa() only handles Latin-1; run through TextEncoder→UTF-8 bytes first
-   * so Unicode characters (page body text, etc.) never cause a range error.
+   * Uses JSON stringification — no base64 encoding needed since the server
+   * now sends and expects plain JSON payloads in the NATSEnvelope.
    */
   static encode(typeTag: string, payload: Record<string, unknown>): NATSEnvelope {
-    const json  = JSON.stringify(payload);
-    const bytes = new TextEncoder().encode(json);  // UTF-8 byte array
-    let binary  = '';
-    bytes.forEach(b => { binary += String.fromCharCode(b); });
-    return { t: typeTag, r: '', p: btoa(binary) };
+    return { t: typeTag, r: '', p: JSON.stringify(payload) };
   }
 
   /**
-   * Decode a NATSEnvelope.  The Go server encodes payloads as UTF-8 JSON then
-   * base64, so we reverse: base64 → binary string → UTF-8 bytes → JSON.parse.
+   * Decode a NATSEnvelope. Supports two formats:
+   * 1. New format: `p` is a JSON string (direct parse).
+   * 2. Legacy format: `p` is base64-encoded JSON (for backward compat).
+   *
+   * Detection: try JSON.parse first; if it fails, assume base64.
    */
   static decode(env: NATSEnvelope): DecodedEnvelope {
     let payload: Record<string, unknown> = {};
     if (env.p) {
       try {
-        const binary = atob(env.p);
-        const bytes  = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        payload = JSON.parse(new TextDecoder().decode(bytes));
-      } catch { /* leave empty */ }
+        // New format: plain JSON string payload.
+        payload = JSON.parse(env.p);
+      } catch {
+        // Legacy fallback: base64 → binary string → UTF-8 → JSON.
+        try {
+          const binary = atob(env.p);
+          const bytes  = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          payload = JSON.parse(new TextDecoder().decode(bytes));
+        } catch { /* leave empty */ }
+      }
     }
     return { typeTag: env.t || '', replyTo: env.r || '', payload };
   }
