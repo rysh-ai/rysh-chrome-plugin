@@ -88,6 +88,29 @@ async function handleMessage({ type }) {
       }
     }
 
+    case 'CAPTURE_SCREENSHOT': {
+      // Capture the visible area of the active tab as a PNG data URL
+      // (follow-up 1b — multimodal attach). Side panels share the window with
+      // the active tab, but currentWindow refers to the panel window; resolve
+      // the focused tab's window first (same approach as GET_PAGE_CONTEXT).
+      let windowId;
+      const [lastFocused] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (lastFocused?.windowId !== undefined) {
+        windowId = lastFocused.windowId;
+      } else {
+        const [current] = await chrome.tabs.query({ active: true, currentWindow: true });
+        windowId = current?.windowId;
+      }
+      try {
+        const dataUrl = windowId !== undefined
+          ? await chrome.tabs.captureVisibleTab(windowId, { format: 'png' })
+          : await chrome.tabs.captureVisibleTab({ format: 'png' });
+        return { dataUrl };
+      } catch (err) {
+        return { error: err?.message || 'screenshot capture failed' };
+      }
+    }
+
     default:
       throw new Error(`Unknown message type: ${type}`);
   }
