@@ -30,6 +30,24 @@ export const MODE_PLACEHOLDER: Record<InputMode, string> = {
 /** Mode order used by double-ESC cycling (same as web terminal). */
 export const MODE_CYCLE: InputMode[] = ['shell', 'prompt', 'rysh', 'chat'];
 
+// ── Multimodal content blocks (follow-up 1b) ────────────────────────────────
+// Mirrors rysh-shared/provider.ContentBlock JSON shape so a published
+// MsgAgenticPrompt.content_blocks deserialises straight into provider types.
+
+export interface ImageSource {
+  type: 'base64' | 'url' | 'file_id';
+  media_type?: string;
+  data?: string;     // base64 when type === 'base64'
+  url?: string;
+  file_id?: string;
+}
+
+export interface ContentBlock {
+  type: 'text' | 'image';
+  text?: string;             // when type === 'text'
+  source?: ImageSource;      // when type === 'image'
+}
+
 // ── Message types ──────────────────────────────────────────────────────────
 
 export type MessageRole = 'user' | 'assistant' | 'tool';
