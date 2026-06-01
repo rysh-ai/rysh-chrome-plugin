@@ -5,7 +5,7 @@ import { storage }    from './storage';
 import { NATSClient } from './nats-client';
 import { debugLog }   from './debug-log';
 import { BrowserActionExecutor } from './browser-executor';
-import type { InputMode, OutputEvent, StatusEvent, PendingApproval, ConversationMessage } from '../types';
+import type { InputMode, OutputEvent, StatusEvent, PendingApproval, ConversationMessage, ContentBlock } from '../types';
 
 const DEFAULT_SERVER_URL = 'https://rysh.ai';
 
@@ -136,11 +136,27 @@ class APIService {
    * ## commands (share, help, …) are executed locally and output is emitted
    * through the normal output handler pipeline so the UI stays reactive.
    */
+  /**
+   * captureScreenshotBlock asks the background service worker to capture the
+   * active tab (chrome.tabs.captureVisibleTab) and returns a base64 image
+   * ContentBlock ready to attach to the next prompt. Follow-up 1b.
+   */
+  async captureScreenshotBlock(): Promise<ContentBlock> {
+    const res = await chrome.runtime.sendMessage({ type: 'CAPTURE_SCREENSHOT' }) as
+      { dataUrl?: string; error?: string };
+    if (!res?.dataUrl) throw new Error(res?.error || 'screenshot capture failed');
+    // dataUrl shape: "data:image/png;base64,<payload>"
+    const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s.exec(res.dataUrl);
+    if (!match) throw new Error('unexpected screenshot data URL');
+    return { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } };
+  }
+
   async submitInput(
     text: string,
     mode: InputMode,
     token: string,
     pageContext?: Record<string, string> | null,
+    contentBlocks?: ContentBlock[] | null,
   ) {
     await this.ensurePane(token);
     if (!this._natsClient || !this._paneID) return;
@@ -169,20 +185,24 @@ class APIService {
         finalPrompt = `<browser_page>\n${lines.join('\n')}\n</browser_page>\n\n${text}`;
       }
 
+      const promptPayload: Record<string, unknown> = { request_id: crypto.randomUUID(), prompt: finalPrompt };
+      if (contentBlocks && contentBlocks.length) promptPayload.content_blocks = contentBlocks;
       this._natsClient.publish(
         `rysh.pane.${this._paneID}.llm_prompt_execution.inbox`,
         TAG_AGENTIC_PROMPT,
-        { request_id: crypto.randomUUID(), prompt: finalPrompt },
+        promptPayload,
       );
       return;
     }
 
     // ── Chat mode: plain AI prompt (no page context injection) ───────────────
     if (mode === 'chat') {
+      const chatPayload: Record<string, unknown> = { request_id: crypto.randomUUID(), prompt: text };
+      if (contentBlocks && contentBlocks.length) chatPayload.content_blocks = contentBlocks;
       this._natsClient.publish(
         `rysh.pane.${this._paneID}.llm_prompt_execution.inbox`,
         TAG_AGENTIC_PROMPT,
-        { request_id: crypto.randomUUID(), prompt: text },
+        chatPayload,
       );
       return;
     }
