@@ -5,9 +5,13 @@
 import { debugLog } from './debug-log';
 
 interface NATSEnvelope {
-  t: string;   // TypeTag
-  r: string;   // replyTo (optional)
-  p: string;   // base64(JSON(payload))
+  t: string;    // TypeTag
+  r: string;    // replyTo (optional)
+  // Inner payload. The Go server's NATSEnvelope.Payload is a json.RawMessage,
+  // so `p` is normally raw inline JSON (an object). A few server publishers
+  // (browser.request, share.command.inbound) still marshal a Go []byte/string
+  // field, which JSON-encodes `p` as a base64 string — decode() handles both.
+  p: unknown;
 }
 
 interface DecodedEnvelope {
@@ -208,31 +212,47 @@ export class NATSClient {
 
   /**
    * Encode a payload to a NATSEnvelope.
-   * btoa() only handles Latin-1; run through TextEncoder→UTF-8 bytes first
-   * so Unicode characters (page body text, etc.) never cause a range error.
+   *
+   * The Go server's NATSEnvelope.Payload is a `json.RawMessage`, so the inner
+   * message must be embedded as raw inline JSON — NOT base64. (The server used
+   * to declare Payload as []byte, which encoding/json base64-encoded; that
+   * format is gone. See rysh-shared/msg/codec.go.) We therefore put the payload
+   * object straight into `p`; JSON.stringify of the outer WS frame serialises
+   * it verbatim, and the server decodes it directly into the target struct.
    */
   static encode(typeTag: string, payload: Record<string, unknown>): NATSEnvelope {
-    const json  = JSON.stringify(payload);
-    const bytes = new TextEncoder().encode(json);  // UTF-8 byte array
-    let binary  = '';
-    bytes.forEach(b => { binary += String.fromCharCode(b); });
-    return { t: typeTag, r: '', p: btoa(binary) };
+    return { t: typeTag, r: '', p: payload };
   }
 
   /**
-   * Decode a NATSEnvelope.  The Go server encodes payloads as UTF-8 JSON then
-   * base64, so we reverse: base64 → binary string → UTF-8 bytes → JSON.parse.
+   * Decode a NATSEnvelope. Handles both wire formats for `p`:
+   *   - object  → raw inline JSON (current server format, already parsed by the
+   *               outer JSON.parse). Used by .output/.status/.approval.request
+   *               and the per-mode .output.* topics.
+   *   - string  → base64(UTF-8 JSON). Still emitted by a few server publishers
+   *               that marshal a Go []byte/string field (browser.request,
+   *               share.command.inbound), and by older server builds.
    */
   static decode(env: NATSEnvelope): DecodedEnvelope {
     let payload: Record<string, unknown> = {};
-    if (env.p) {
+    const p = env.p;
+
+    if (p && typeof p === 'object') {
+      // Raw inline JSON — embedded verbatim by the Go json.RawMessage envelope.
+      payload = p as Record<string, unknown>;
+    } else if (typeof p === 'string' && p.length > 0) {
+      // base64(UTF-8 JSON): base64 → binary string → UTF-8 bytes → JSON.parse.
       try {
-        const binary = atob(env.p);
+        const binary = atob(p);
         const bytes  = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         payload = JSON.parse(new TextDecoder().decode(bytes));
-      } catch { /* leave empty */ }
+      } catch {
+        // Not base64 — fall back to treating it as a raw JSON string.
+        try { payload = JSON.parse(p); } catch { /* leave empty */ }
+      }
     }
+
     return { typeTag: env.t || '', replyTo: env.r || '', payload };
   }
 }
