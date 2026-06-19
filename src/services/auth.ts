@@ -3,7 +3,10 @@
 
 import { storage } from './storage';
 
-const DEFAULT_SERVER_URL = 'https://rysh.ai';
+// Baked in at build time by Vite `define` (see vite.config.ts). The Makefile
+// sets it via VITE_RYSH_SERVER_URL: `make build-prod` → https://rysh.ai,
+// `make build-test` → the local rysh-server. Falls back to production.
+const DEFAULT_SERVER_URL = __RYSH_DEFAULT_SERVER_URL__ || 'https://rysh.ai';
 
 export interface AuthUser {
   uid: string;

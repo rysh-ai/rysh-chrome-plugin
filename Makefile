@@ -19,8 +19,19 @@ EXTENSION_ID   ?=   # Leave blank for first upload; fill in after
 
 # ── Internal paths ────────────────────────────────────────────────────────────
 ZIP_FILE       := rysh-chrome-plugin.zip
+TEST_ZIP_FILE  := rysh-chrome-plugin-test.zip
 BUILD_DIR      := .build
 TOKEN_FILE     := $(BUILD_DIR)/.access_token
+
+# ── Deployment target server URLs (baked into the build at build time) ───────
+# The build reads VITE_RYSH_SERVER_URL; the env-specific targets set it below.
+#   prod → https://rysh.ai          (Chrome Web Store build)
+#   test → local rysh-server stack  (rysh-server docker-compose.local.yml: the
+#          nginx entry point is exposed at HOST_IP:34080, where HOST_IP is the
+#          loopback alias defined in rysh-server/.env.local).
+#          Override: make build-test SERVER_URL_TEST=http://host:port
+SERVER_URL_PROD := https://rysh.ai
+SERVER_URL_TEST ?= http://127.0.5.251:34080
 
 # ── Chrome Web Store API endpoints ───────────────────────────────────────────
 CWS_TOKEN_URL   := https://oauth2.googleapis.com/token
@@ -36,6 +47,7 @@ ZIP_EXCLUDES := \
 	".env" \
 	".env.*" \
 	"$(ZIP_FILE)" \
+	"$(TEST_ZIP_FILE)" \
 	"$(BUILD_DIR)/*" \
 	"icons/generate-icons.js" \
 	"package.json" \
@@ -45,7 +57,8 @@ ZIP_EXCLUDES := \
 	"node_modules/*"
 
 # ── Phony targets ─────────────────────────────────────────────────────────────
-.PHONY: help icons validate pack token upload publish deploy clean open check-deps build
+.PHONY: help icons validate pack token upload publish deploy clean open check-deps build \
+        build-prod build-test deploy-prod deploy-test
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Help
@@ -54,7 +67,7 @@ help: ## Show available targets
 	@echo ""
 	@echo "  Rysh AI Chrome Extension — build & publish"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "  Secrets are read from .env (CLIENT_ID, CLIENT_SECRET,"
@@ -67,7 +80,42 @@ help: ## Show available targets
 build: ## Install npm deps and build the React popup into dist/
 	npm install
 	npm run build
-	@echo "✓ Built → dist/"
+	@echo "✓ Built → dist/ (server: $${VITE_RYSH_SERVER_URL:-https://rysh.ai})"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Environment-specific builds (server URL baked in at build time)
+# ─────────────────────────────────────────────────────────────────────────────
+# Target-specific `export` propagates VITE_RYSH_SERVER_URL to the `build`
+# prerequisite (and, for deploy-prod, to the sub-make pipeline) so Vite bakes
+# the right default server URL into the bundle, auth.js, and auth.html.
+
+build-prod: export VITE_RYSH_SERVER_URL := $(SERVER_URL_PROD)
+build-prod: build ## Build dist/ for PRODUCTION (server: https://rysh.ai)
+	@echo "✓ PROD build ready → $(SERVER_URL_PROD)"
+
+build-test: export VITE_RYSH_SERVER_URL := $(SERVER_URL_TEST)
+build-test: build ## Build dist/ for the LOCAL test server (override: SERVER_URL_TEST=http://localhost:PORT)
+	@echo "✓ TEST build ready → $(SERVER_URL_TEST)"
+
+deploy-prod: export VITE_RYSH_SERVER_URL := $(SERVER_URL_PROD)
+deploy-prod: ## Deploy PROD: build for rysh.ai → validate → pack → upload → publish to the Chrome Web Store
+	@echo "==> PROD deploy — baking server URL: $(SERVER_URL_PROD)"
+	@$(MAKE) --no-print-directory deploy
+
+deploy-test: export VITE_RYSH_SERVER_URL := $(SERVER_URL_TEST)
+deploy-test: validate ## Deploy TEST: build for the local rysh-server and package for local load-unpacked (no CWS upload)
+	@rm -f $(TEST_ZIP_FILE)
+	@cd dist && zip -qr ../$(TEST_ZIP_FILE) .
+	@echo ""
+	@echo "✓ TEST deploy ready — server URL baked in: $(SERVER_URL_TEST)"
+	@echo "  Packaged → $(TEST_ZIP_FILE)"
+	@echo ""
+	@echo "  Load in Chrome (unpacked):"
+	@echo "    1. chrome://extensions  →  enable Developer mode"
+	@echo "    2. Load unpacked  →  $(CURDIR)/dist"
+	@echo ""
+	@echo "  Make sure a local rysh-server is running at $(SERVER_URL_TEST)"
+	@echo "  (override the port with: make deploy-test SERVER_URL_TEST=http://localhost:PORT)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Dependency check
@@ -229,8 +277,8 @@ open: ## Open the Chrome Web Store Developer Dashboard in the browser
 		|| xdg-open "$(CWS_DASHBOARD)" 2>/dev/null \
 		|| echo "Open: $(CWS_DASHBOARD)"
 
-clean: ## Remove build artefacts (ZIP, token cache)
-	rm -f $(ZIP_FILE)
+clean: ## Remove build artefacts (ZIPs, token cache)
+	rm -f $(ZIP_FILE) $(TEST_ZIP_FILE)
 	rm -rf $(BUILD_DIR)
 	@echo "✓ Cleaned"
 

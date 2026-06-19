@@ -7,6 +7,10 @@ yarn-error.log*
 # Build output (if a bundler is added later)
 dist/
 build/
+# Makefile artefacts incl. .access_token (CWS OAuth secret)
+.build/
+# local test-deploy package (make deploy-test)
+rysh-chrome-plugin-test.zip
 
 # macOS
 .DS_Store

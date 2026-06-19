@@ -2,6 +2,10 @@
 
 import authService from './authService.js';
 
+// Default server URL, substituted at build time by the Vite copy plugin
+// (Makefile build-prod → https://rysh.ai, build-test → local rysh-server).
+const DEFAULT_SERVER_URL = '__RYSH_DEFAULT_SERVER_URL__';
+
 // ── DOM references ────────────────────────────────────────────────────────────
 const serverURLInput   = document.getElementById('server-url-input');
 const apiKeyInput      = document.getElementById('api-key-input');
@@ -37,7 +41,7 @@ apiKeyInput.addEventListener('keydown', e => {
 });
 
 async function handleAuthorize() {
-  const serverURL = (serverURLInput.value.trim() || 'https://rysh.ai').replace(/\/$/, '');
+  const serverURL = (serverURLInput.value.trim() || DEFAULT_SERVER_URL).replace(/\/$/, '');
   const key = apiKeyInput.value.trim();
 
   hideError();

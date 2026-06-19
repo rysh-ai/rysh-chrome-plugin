@@ -7,7 +7,10 @@ import { debugLog }   from './debug-log';
 import { BrowserActionExecutor } from './browser-executor';
 import type { InputMode, OutputEvent, StatusEvent, PendingApproval } from '../types';
 
-const DEFAULT_SERVER_URL = 'https://rysh.ai';
+// Baked in at build time by Vite `define` (see vite.config.ts). The Makefile
+// sets it via VITE_RYSH_SERVER_URL: `make build-prod` → https://rysh.ai,
+// `make build-test` → the local rysh-server. Falls back to production.
+const DEFAULT_SERVER_URL = __RYSH_DEFAULT_SERVER_URL__ || 'https://rysh.ai';
 
 // NATSEnvelope TypeTag constants (must match rysh-shared/msg constants).
 const TAG_AGENTIC_PROMPT          = 'MsgAgenticPrompt';
