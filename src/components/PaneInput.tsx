@@ -1,8 +1,9 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { apiService } from '../services/api';
 import { authService } from '../services/auth';
 import { MODE_PROMPT, MODE_PLACEHOLDER } from '../types';
+import type { ContentBlock } from '../types';
 
 const PROMPT_COLORS: Record<string, string> = {
   shell:  'text-[#34d399]',
@@ -32,6 +33,26 @@ export default function PaneInput() {
   const startStreaming  = useStore(s => s.startStreaming);
   const setIsLoading   = useStore(s => s.setIsLoading);
   const setErrorMessage = useStore(s => s.setErrorMessage);
+
+  // Pending screenshot to attach to the next prompt (follow-up 1b).
+  const [pendingImage, setPendingImage] = useState<ContentBlock | null>(null);
+  const [capturing, setCapturing]       = useState(false);
+
+  const aiMode = inputMode === 'prompt' || inputMode === 'chat';
+
+  async function handleCapture() {
+    if (capturing || isLoading) return;
+    setCapturing(true);
+    setErrorMessage(null);
+    try {
+      const block = await apiService.captureScreenshotBlock();
+      setPendingImage(block);
+    } catch (err) {
+      setErrorMessage((err as Error).message || 'Screenshot capture failed.');
+    } finally {
+      setCapturing(false);
+    }
+  }
 
   // Auto-focus input when mode changes.
   useEffect(() => {
@@ -69,13 +90,19 @@ export default function PaneInput() {
 
   async function handleSubmit() {
     const text = inputText.trim();
-    if (!text || isLoading) return;
+    // Allow an image-only submission (screenshot attached, no text).
+    if ((!text && !pendingImage) || isLoading) return;
 
-    // Add to history and reset idx.
-    addToHistory(inputMode, text);
+    const blocks: ContentBlock[] | null = pendingImage ? [pendingImage] : null;
+
+    // Add to history and reset idx (skip empty image-only submissions).
+    if (text) {
+      addToHistory(inputMode, text);
+    }
     setHistoryIdx(inputMode, -1);
     setHistorySaved(inputMode, '');
     setInputText('');
+    setPendingImage(null);
     setErrorMessage(null);
 
     // Add user message bubble (prompt / chat modes).
@@ -83,7 +110,7 @@ export default function PaneInput() {
       addMessage({
         id:        crypto.randomUUID(),
         role:      'user',
-        content:   text,
+        content:   blocks ? (text ? `${text}\n[📷 screenshot attached]` : '[📷 screenshot attached]') : text,
         timestamp: new Date(),
         mode:      inputMode,
       });
@@ -116,7 +143,7 @@ export default function PaneInput() {
     }
 
     try {
-      await apiService.submitInput(text, inputMode, token, pageCtx);
+      await apiService.submitInput(text, inputMode, token, pageCtx, blocks);
     } catch (err) {
       setErrorMessage((err as Error).message || 'Failed to send.');
       setIsLoading(false);
@@ -131,6 +158,23 @@ export default function PaneInput() {
       >
         {promptChar}
       </span>
+
+      {/* Pending screenshot chip (follow-up 1b) */}
+      {pendingImage && (
+        <span
+          className="flex items-center gap-1 mr-1.5 px-1.5 py-0.5 rounded bg-primary/20 text-primary text-[11px] font-mono shrink-0"
+          title="Screenshot attached to next prompt"
+        >
+          📷
+          <button
+            onClick={() => setPendingImage(null)}
+            title="Remove screenshot"
+            className="hover:text-error leading-none"
+          >
+            ✕
+          </button>
+        </span>
+      )}
 
       {/* Text input */}
       <input
@@ -156,6 +200,27 @@ export default function PaneInput() {
           }
         }}
       />
+
+      {/* Attach screenshot button (AI modes, not loading) — follow-up 1b */}
+      {aiMode && !isLoading && (
+        <button
+          onClick={handleCapture}
+          disabled={capturing}
+          title="Attach a screenshot of the current tab"
+          className="ml-1 w-7 h-7 flex items-center justify-center rounded-md bg-surface hover:bg-border disabled:opacity-40 text-dim hover:text-text transition-colors shrink-0"
+        >
+          {capturing ? (
+            <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+          ) : (
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          )}
+        </button>
+      )}
 
       {/* Send button (AI/chat modes while loading: show cancel button) */}
       {(inputMode === 'prompt' || inputMode === 'chat') && isLoading ? (
