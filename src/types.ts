@@ -30,6 +30,24 @@ export const MODE_PLACEHOLDER: Record<InputMode, string> = {
 /** Mode order used by double-ESC cycling (same as web terminal). */
 export const MODE_CYCLE: InputMode[] = ['shell', 'prompt', 'rysh', 'chat'];
 
+// ── Multimodal content blocks (follow-up 1b) ────────────────────────────────
+// Mirrors rysh-shared/provider.ContentBlock JSON shape so a published
+// MsgAgenticPrompt.content_blocks deserialises straight into provider types.
+
+export interface ImageSource {
+  type: 'base64' | 'url' | 'file_id';
+  media_type?: string;
+  data?: string;     // base64 when type === 'base64'
+  url?: string;
+  file_id?: string;
+}
+
+export interface ContentBlock {
+  type: 'text' | 'image';
+  text?: string;             // when type === 'text'
+  source?: ImageSource;      // when type === 'image'
+}
+
 // ── Message types ──────────────────────────────────────────────────────────
 
 export type MessageRole = 'user' | 'assistant' | 'tool';
@@ -46,6 +64,35 @@ export interface Message {
   streaming?: boolean;
   /** Name of the remote sender (for share commands). */
   sender?: string;
+}
+
+// ── Unified conversation types (messaging refactoring) ────────────────────
+
+export type ConversationType =
+  | 'shell' | 'ai' | 'rysh' | 'chat'
+  | 'email' | 'slack' | 'chatbot';
+
+export type TurnType = 'question' | 'answer';
+
+export type InputTypeEnum =
+  | 'shell' | 'prompt' | 'command' | 'approval' | 'message';
+
+export type MessageSource =
+  | 'human' | 'ai' | 'external' | 'agent'
+  | 'subagent' | 'humanoid' | 'system';
+
+export interface ConversationMessage {
+  turn_id: string;
+  turn_type: TurnType;
+  conversation_type: ConversationType;
+  input_type: InputTypeEnum;
+  message_source: MessageSource;
+  content: string;
+  timestamp_ms: number;
+  sensitive?: boolean;
+  subject_to_share?: boolean;
+  role?: string;
+  streaming?: boolean;
 }
 
 // ── Approval ───────────────────────────────────────────────────────────────

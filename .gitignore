@@ -31,3 +31,6 @@ rysh-chrome-plugin-test.zip
 # Chrome extension packed file
 *.crx
 *.pem
+
+# build output
+.build/

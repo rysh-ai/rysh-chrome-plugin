@@ -5,7 +5,7 @@ import { storage }    from './storage';
 import { NATSClient } from './nats-client';
 import { debugLog }   from './debug-log';
 import { BrowserActionExecutor } from './browser-executor';
-import type { InputMode, OutputEvent, StatusEvent, PendingApproval } from '../types';
+import type { InputMode, OutputEvent, StatusEvent, PendingApproval, ConversationMessage, ContentBlock } from '../types';
 
 // Baked in at build time by Vite `define` (see vite.config.ts). The Makefile
 // sets it via VITE_RYSH_SERVER_URL: `make build-prod` → https://rysh.ai,
@@ -18,22 +18,24 @@ const TAG_AGENTIC_CANCEL          = 'MsgAgenticCancel';
 const TAG_APPROVAL_RESPONSE       = 'MsgApprovalResponse';
 const TAG_BROWSER_ACTION_RESPONSE = 'MsgBrowserActionResponse';
 
-type OutputHandler   = (ev: OutputEvent) => void;
-type StatusHandler   = (ev: StatusEvent) => void;
-type ApprovalHandler = (ev: PendingApproval) => void;
-type VoidHandler     = () => void;
+type OutputHandler       = (ev: OutputEvent) => void;
+type ConversationHandler = (cm: ConversationMessage) => void;
+type StatusHandler       = (ev: StatusEvent) => void;
+type ApprovalHandler     = (ev: PendingApproval) => void;
+type VoidHandler         = () => void;
 
 class APIService {
   private _serverURL       = DEFAULT_SERVER_URL;
   private _paneID: string | null = null;
   private _wsURL:  string | null = null;
   private _natsClient: NATSClient | null = null;
-  private _outputHandlers:   OutputHandler[]   = [];
-  private _statusHandlers:   StatusHandler[]   = [];
-  private _approvalHandlers: ApprovalHandler[] = [];
-  private _connectHandlers:  VoidHandler[]     = [];
-  private _disconnectHandlers: VoidHandler[]   = [];
-  private _unsubs: Array<() => void>           = [];
+  private _outputHandlers:       OutputHandler[]       = [];
+  private _conversationHandlers: ConversationHandler[] = [];
+  private _statusHandlers:       StatusHandler[]       = [];
+  private _approvalHandlers:     ApprovalHandler[]     = [];
+  private _connectHandlers:      VoidHandler[]         = [];
+  private _disconnectHandlers:   VoidHandler[]         = [];
+  private _unsubs: Array<() => void>                   = [];
   private _browserExecutor = new BrowserActionExecutor();
   // Track active share so ##share list can report it.
   private _activeShareID: string | null = null;
@@ -137,11 +139,27 @@ class APIService {
    * ## commands (share, help, …) are executed locally and output is emitted
    * through the normal output handler pipeline so the UI stays reactive.
    */
+  /**
+   * captureScreenshotBlock asks the background service worker to capture the
+   * active tab (chrome.tabs.captureVisibleTab) and returns a base64 image
+   * ContentBlock ready to attach to the next prompt. Follow-up 1b.
+   */
+  async captureScreenshotBlock(): Promise<ContentBlock> {
+    const res = await chrome.runtime.sendMessage({ type: 'CAPTURE_SCREENSHOT' }) as
+      { dataUrl?: string; error?: string };
+    if (!res?.dataUrl) throw new Error(res?.error || 'screenshot capture failed');
+    // dataUrl shape: "data:image/png;base64,<payload>"
+    const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s.exec(res.dataUrl);
+    if (!match) throw new Error('unexpected screenshot data URL');
+    return { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } };
+  }
+
   async submitInput(
     text: string,
     mode: InputMode,
     token: string,
     pageContext?: Record<string, string> | null,
+    contentBlocks?: ContentBlock[] | null,
   ) {
     await this.ensurePane(token);
     if (!this._natsClient || !this._paneID) return;
@@ -170,20 +188,24 @@ class APIService {
         finalPrompt = `<browser_page>\n${lines.join('\n')}\n</browser_page>\n\n${text}`;
       }
 
+      const promptPayload: Record<string, unknown> = { request_id: crypto.randomUUID(), prompt: finalPrompt };
+      if (contentBlocks && contentBlocks.length) promptPayload.content_blocks = contentBlocks;
       this._natsClient.publish(
         `rysh.pane.${this._paneID}.llm_prompt_execution.inbox`,
         TAG_AGENTIC_PROMPT,
-        { request_id: crypto.randomUUID(), prompt: finalPrompt },
+        promptPayload,
       );
       return;
     }
 
     // ── Chat mode: plain AI prompt (no page context injection) ───────────────
     if (mode === 'chat') {
+      const chatPayload: Record<string, unknown> = { request_id: crypto.randomUUID(), prompt: text };
+      if (contentBlocks && contentBlocks.length) chatPayload.content_blocks = contentBlocks;
       this._natsClient.publish(
         `rysh.pane.${this._paneID}.llm_prompt_execution.inbox`,
         TAG_AGENTIC_PROMPT,
-        { request_id: crypto.randomUUID(), prompt: text },
+        chatPayload,
       );
       return;
     }
@@ -264,6 +286,11 @@ class APIService {
   onStatus(handler: StatusHandler): () => void {
     this._statusHandlers.push(handler);
     return () => { this._statusHandlers = this._statusHandlers.filter(h => h !== handler); };
+  }
+
+  onConversation(handler: ConversationHandler): () => void {
+    this._conversationHandlers.push(handler);
+    return () => { this._conversationHandlers = this._conversationHandlers.filter(h => h !== handler); };
   }
 
   onApproval(handler: ApprovalHandler): () => void {
@@ -490,20 +517,50 @@ class APIService {
       }));
     });
 
-    // Per-mode terminal output (shell / rysh / chat) forwarded by the server proxy.
-    const u4 = this._natsClient.subscribe(`rysh.pane.${id}.output.shell`, (_tag, payload) => {
-      console.log('[APIService] output.shell →', ((payload.text as string) || '').slice(0, 60));
-      this._outputHandlers.forEach(h => h({ type: 'shell', content: (payload.text as string) || '' }));
-    });
+    // ── Unified ConversationMessage handler ──────────────────────────────────
+    // Subscribes to per-mode output topics. When a MsgConversationAppend arrives,
+    // extracts the ConversationMessage and dispatches to both the structured
+    // conversation handlers AND the legacy output handlers for backward compat.
+    const conversationTopics = ['shell', 'ai', 'rysh', 'chat', 'email', 'slack', 'chatbot'];
+    const conversationUnsubs: Array<() => void> = [];
 
-    const u5 = this._natsClient.subscribe(`rysh.pane.${id}.output.rysh`, (_tag, payload) => {
-      console.log('[APIService] output.rysh →', ((payload.text as string) || '').slice(0, 60));
-      this._outputHandlers.forEach(h => h({ type: 'rysh', content: (payload.text as string) || '' }));
-    });
+    for (const mode of conversationTopics) {
+      const unsub = this._natsClient.subscribe(`rysh.pane.${id}.output.${mode}`, (tag, payload) => {
+        // Handle unified MsgConversationAppend format.
+        if (tag === 'MsgConversationAppend' && payload.message) {
+          const cm = payload.message as unknown as ConversationMessage;
+          debugLog(`conversation.${mode} → ${cm.turn_type}: ${(cm.content || '').slice(0, 50)}`);
+          // Dispatch to structured conversation handlers.
+          this._conversationHandlers.forEach(h => h(cm));
+          // Also dispatch to legacy output handlers for backward compat.
+          const outputType = this._conversationTypeToOutputType(cm.conversation_type);
+          this._outputHandlers.forEach(h => h({ type: outputType, content: cm.content || '' }));
+          return;
+        }
 
-    const u6 = this._natsClient.subscribe(`rysh.pane.${id}.output.chat`, (_tag, payload) => {
-      console.log('[APIService] output.chat →', ((payload.text as string) || '').slice(0, 60));
-      this._outputHandlers.forEach(h => h({ type: 'chat', content: (payload.text as string) || '' }));
+        // Legacy per-mode text format.
+        const text = (payload.text as string) || '';
+        if (text) {
+          const outputType = mode === 'ai' ? 'text' : mode as OutputEvent['type'];
+          debugLog(`output.${mode} → ${text.slice(0, 50)}`);
+          this._outputHandlers.forEach(h => h({ type: outputType, content: text }));
+        }
+      });
+      conversationUnsubs.push(unsub);
+    }
+
+    // Also subscribe to merged output topic for shell+ai interleaved stream.
+    const uMerged = this._natsClient.subscribe(`rysh.pane.${id}.output`, (tag, payload) => {
+      if (tag === 'MsgConversationAppend' && payload.message) {
+        const cm = payload.message as unknown as ConversationMessage;
+        this._conversationHandlers.forEach(h => h(cm));
+        return;
+      }
+      // Legacy MsgPaneOutputAppend.
+      const text = (payload.text as string) || '';
+      if (text) {
+        this._outputHandlers.forEach(h => h({ type: 'text', content: text }));
+      }
     });
 
     // Share command inbound — a remote CLI user sent a command via the share.
@@ -549,7 +606,21 @@ class APIService {
       );
     });
 
-    this._unsubs.push(u1, u2, u3, u4, u5, u6, u7, u8);
+    this._unsubs.push(u1, u2, u3, ...conversationUnsubs, uMerged, u7, u8);
+  }
+
+  /** Map ConversationType to OutputEvent type for legacy handler compatibility. */
+  private _conversationTypeToOutputType(convType: string): OutputEvent['type'] {
+    switch (convType) {
+      case 'shell':   return 'shell';
+      case 'ai':      return 'text';
+      case 'rysh':    return 'rysh';
+      case 'chat':    return 'chat';
+      case 'email':   return 'text';
+      case 'slack':   return 'text';
+      case 'chatbot': return 'chat';
+      default:        return 'text';
+    }
   }
 }
 
