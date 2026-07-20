@@ -23,9 +23,12 @@ rysh-chrome-plugin-test.zip
 *.swp
 *.swo
 
-# Secrets — NEVER commit API keys
+# Secrets — NEVER commit API keys (keep .env.example templates)
 .env
-.env.local
+.env.*
+*.env
+!.env.example
+!**/.env.example
 *.secret
 
 # Chrome extension packed file
