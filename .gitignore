@@ -37,3 +37,4 @@ rysh-chrome-plugin-test.zip
 
 # build output
 .build/
+.build-test/
