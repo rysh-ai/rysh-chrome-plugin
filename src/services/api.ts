@@ -98,7 +98,10 @@ class APIService {
     const wsOrigin = this._serverURL
       .replace(/^https:\/\//, 'wss://')
       .replace(/^http:\/\//, 'ws://');
-    this._wsURL = `${wsOrigin}${data.ws_url}?token=${encodeURIComponent(token)}`;
+    // No credential in the URL (F-86): NATSClient sends the token as a
+    // WebSocket subprotocol, falling back to ?token= only for a server that
+    // predates that.
+    this._wsURL = `${wsOrigin}${data.ws_url}`;
 
     debugLog('creating NATSClient for pane ' + this._paneID);
     this._natsClient = new NATSClient();
@@ -111,7 +114,7 @@ class APIService {
       this._disconnectHandlers.forEach(h => h());
     });
     debugLog('connecting WS...');
-    await this._natsClient.connect(this._wsURL);
+    await this._natsClient.connect(this._wsURL, token);
     debugLog('subscribing to output subjects');
     this._subscribeOutputSubjects();
     debugLog('pane ready: ' + this._paneID);

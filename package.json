@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "icons": "node icons/generate-icons.js"
+    "icons": "node icons/generate-icons.js",
+    "test": "tsc -p tsconfig.test.json && node -e \"require('fs').writeFileSync('.build-test/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\" && node --test .build-test/tests/"
   },
   "engines": {
     "node": ">=18"

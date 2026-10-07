@@ -3,6 +3,7 @@
 // Includes auto-reconnect on unexpected disconnections.
 
 import { debugLog } from './debug-log';
+import { wsDialArgs, type WsAuthMode } from './ws-auth';
 
 interface NATSEnvelope {
   t: string;    // TypeTag
@@ -38,25 +39,44 @@ export class NATSClient {
   private _maxReconnectAttempts = 20;
   private _baseReconnectDelay = 1000; // ms, doubles each attempt up to 30s
 
-  connect(wsUrl: string): Promise<void> {
+  // ── Credential (F-86) ───────────────────────────────────────────────────
+  // With a token the socket authenticates by subprotocol (ws-auth.ts). If
+  // that has never worked against this server and the very first handshake
+  // fails, the server predates it: fall back once to ?token= and stay there.
+  private _token: string | null = null;
+  private _authMode: WsAuthMode = 'subprotocol';
+  private _subprotocolWorked = false;
+
+  /** wsUrl is the pane socket URL WITHOUT credentials; token is the API key or JWT. */
+  connect(wsUrl: string, token?: string): Promise<void> {
     this._closed = false;
     this._wsUrl = wsUrl;
+    this._token = token ?? null;
+    this._authMode = 'subprotocol';
+    this._subprotocolWorked = false;
     this._reconnectAttempt = 0;
     return this._doConnect(wsUrl);
   }
 
   private _doConnect(wsUrl: string): Promise<void> {
     return new Promise((resolve, reject) => {
+      const dial = this._token ? wsDialArgs(wsUrl, this._token, this._authMode) : { url: wsUrl };
+      let opened = false;
       try {
-        this._ws = new WebSocket(wsUrl);
+        this._ws = dial.protocols ? new WebSocket(dial.url, dial.protocols) : new WebSocket(dial.url);
       } catch (err) {
         reject(err);
         return;
       }
+      // A first-ever subprotocol attempt that fails before opening means the
+      // server does not select our protocol: retry once with ?token=.
+      const shouldFallBack = () =>
+        !opened && this._token !== null && this._authMode === 'subprotocol' && !this._subprotocolWorked;
 
       this._ws.onopen = () => {
-        const safeUrl = wsUrl.replace(/token=[^&]+/, 'token=***');
-        debugLog('WS opened: ' + safeUrl);
+        opened = true;
+        if (this._authMode === 'subprotocol' && this._token) this._subprotocolWorked = true;
+        debugLog(`WS opened: ${wsUrl} (credential: ${this._token ? this._authMode : 'none'})`);
         this._reconnectAttempt = 0;
         this._reconnecting = false;
         this._onOpenCb?.();
@@ -65,6 +85,7 @@ export class NATSClient {
 
       this._ws.onerror = (ev) => {
         debugLog('WS error: ' + String(ev));
+        if (shouldFallBack()) return; // handled in onclose
         this._onErrorCb?.(ev);
         // Only reject the initial connect() promise, not reconnects.
         if (!this._reconnecting) reject(new Error('WebSocket connection failed'));
@@ -72,6 +93,12 @@ export class NATSClient {
 
       this._ws.onclose = (ev) => {
         debugLog(`WS closed: code=${ev.code} reason=${ev.reason} clean=${ev.wasClean}`);
+        if (!this._closed && shouldFallBack()) {
+          debugLog('server did not accept the subprotocol credential — falling back to ?token= for this server');
+          this._authMode = 'query';
+          this._doConnect(wsUrl).then(resolve, reject);
+          return;
+        }
         if (!this._closed) {
           this._onCloseCb?.(ev);
           this._scheduleReconnect();
